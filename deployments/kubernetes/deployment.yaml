@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: evm-executor
+  labels:
+    app: evm-executor
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: evm-executor
+  template:
+    metadata:
+      labels:
+        app: evm-executor
+    spec:
+      containers:
+      - name: executor
+        image: evm-executor:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9091
+          name: metrics
+          protocol: TCP
+        env:
+        - name: EVM_EXECUTOR_STORAGE_PIKA_ADDR
+          value: "pika-service:9221"
+        - name: EVM_EXECUTOR_LOGGING_LEVEL
+          value: "info"
+        - name: EVM_EXECUTOR_CHAIN_NAME
+          value: "bsc"
+        resources:
+          requests:
+            memory: "8Gi"
+            cpu: "2000m"
+          limits:
+            memory: "16Gi"
+            cpu: "4000m"
+        livenessProbe:
+          httpGet:
+            path: /metrics
+            port: 9091
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /metrics
+            port: 9091
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: evm-executor-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: evm-executor
+  labels:
+    app: evm-executor
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9091
+    targetPort: 9091
+    protocol: TCP
+    name: metrics
+  selector:
+    app: evm-executor
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: evm-executor-config
+data:
+  config.yaml: |
+    chain:
+      name: "bsc"
+      network_id: 56
+
+    storage:
+      pika:
+        addr: "pika-service:9221"
+        password: ""
+        db: 0
+        max_connections: 200
+        pipeline_size: 1000
+
+    execution:
+      concurrent_workers: 4
+      batch_size: 10
+      state_window_size: 1024
+      state_cache_size: 10000
+      storage_cache_size: 50000
+      code_cache_size: 1000
+
+    evm:
+      enable_debug: false
+      vm_timeout: 30s
+      gas_limit: 30000000
+
+    worker_pools:
+      tx_executor:
+        worker_count: 4
+        queue_size: 100
+      state_committer:
+        worker_count: 2
+        queue_size: 50
+      receipt_writer:
+        worker_count: 4
+        queue_size: 100
+
+    metrics:
+      enabled: true
+      listen_addr: "0.0.0.0:9091"
+
+    logging:
+      level: "info"
+      format: "json"

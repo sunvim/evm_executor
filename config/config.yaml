@@ -1,0 +1,45 @@
+# EVM Executor Configuration
+
+chain:
+  name: "bsc"
+  network_id: 56
+
+storage:
+  pika:
+    addr: "127.0.0.1:9221"
+    password: ""
+    db: 0
+    max_connections: 200
+    pipeline_size: 1000
+
+execution:
+  concurrent_workers: 4
+  batch_size: 10
+  state_window_size: 1024
+  state_cache_size: 10000
+  storage_cache_size: 50000
+  code_cache_size: 1000
+
+evm:
+  enable_debug: false
+  vm_timeout: 30s
+  gas_limit: 30000000
+
+worker_pools:
+  tx_executor:
+    worker_count: 4
+    queue_size: 100
+  state_committer:
+    worker_count: 2
+    queue_size: 50
+  receipt_writer:
+    worker_count: 4
+    queue_size: 100
+
+metrics:
+  enabled: true
+  listen_addr: "0.0.0.0:9091"
+
+logging:
+  level: "info"
+  format: "json"
