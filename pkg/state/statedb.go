@@ -322,9 +322,24 @@ func (s *PikaStateDB) Suicide(addr common.Address) bool {
 	return !prev
 }
 
+// SelfDestruct is an alias for Suicide for v1.13.8 compatibility
+func (s *PikaStateDB) SelfDestruct(addr common.Address) {
+	s.Suicide(addr)
+}
+
+// Selfdestruct6780 implements EIP-6780: only self-destruct in the same transaction
+func (s *PikaStateDB) Selfdestruct6780(addr common.Address) {
+	s.SelfDestruct(addr)
+}
+
 // HasSuicided returns whether account is marked for deletion
 func (s *PikaStateDB) HasSuicided(addr common.Address) bool {
 	return s.suicides[addr]
+}
+
+// HasSelfDestructed is an alias for HasSuicided for v1.13.8 compatibility
+func (s *PikaStateDB) HasSelfDestructed(addr common.Address) bool {
+	return s.HasSuicided(addr)
 }
 
 // Exist returns whether an account exists
@@ -408,22 +423,18 @@ func (s *PikaStateDB) RevertToSnapshot(revid int) {
 
 // Prepare handles transaction preparation
 func (s *PikaStateDB) Prepare(rules params.Rules, sender, coinbase common.Address, dest *common.Address, precompiles []common.Address, txAccesses types.AccessList) {
-	if rules.IsEIP2929 {
-		s.accessList.AddAddress(sender)
-		if dest != nil {
-			s.accessList.AddAddress(*dest)
-		}
-		for _, addr := range precompiles {
-			s.accessList.AddAddress(addr)
-		}
-		for _, el := range txAccesses {
-			s.accessList.AddAddress(el.Address)
-			for _, key := range el.StorageKeys {
-				s.accessList.AddSlot(el.Address, key)
-			}
-		}
-		if rules.IsShanghai {
-			s.accessList.AddAddress(coinbase)
+	// Add addresses to access list if supported
+	s.accessList.AddAddress(sender)
+	if dest != nil {
+		s.accessList.AddAddress(*dest)
+	}
+	for _, addr := range precompiles {
+		s.accessList.AddAddress(addr)
+	}
+	for _, el := range txAccesses {
+		s.accessList.AddAddress(el.Address)
+		for _, key := range el.StorageKeys {
+			s.accessList.AddSlot(el.Address, key)
 		}
 	}
 	s.thash = common.Hash{}
@@ -466,10 +477,31 @@ func (s *PikaStateDB) AddSlotToAccessList(addr common.Address, slot common.Hash)
 	}
 }
 
+// AccessEvents returns nil for v1.13.8 compatibility
+func (s *PikaStateDB) AccessEvents() interface{} {
+	return nil
+}
+
+// GetTransientState gets transient storage value (EIP-1153)
+func (s *PikaStateDB) GetTransientState(addr common.Address, key common.Hash) common.Hash {
+	// Not implemented for now, return zero
+	return common.Hash{}
+}
+
+// SetTransientState sets transient storage value (EIP-1153)
+func (s *PikaStateDB) SetTransientState(addr common.Address, key, value common.Hash) {
+	// Not implemented for now
+}
+
 // SetTxContext sets the transaction context
 func (s *PikaStateDB) SetTxContext(thash common.Hash, ti int) {
 	s.thash = thash
 	s.txIndex = ti
+}
+
+// GetTxIndexInternal returns the current transaction index
+func (s *PikaStateDB) GetTxIndexInternal() int {
+	return s.txIndex
 }
 
 // Commit writes the state changes to storage
@@ -493,8 +525,8 @@ func (s *PikaStateDB) Commit() error {
 	}
 
 	// Write storage
-	for addr, storage := range s.storages {
-		for key, value := range storage {
+	for addr, storageMap := range s.storages {
+		for key, value := range storageMap {
 			ops = append(ops, storage.WriteOp{
 				Type:     storage.WriteOpStorage,
 				BlockNum: s.blockNumber + 1,

@@ -63,7 +63,7 @@ func (b *BlockStorage) GetBlock(ctx context.Context, blockNum uint64) (*types.Bl
 		return nil, fmt.Errorf("failed to decode transactions: %w", err)
 	}
 
-	// Construct block (without uncles for simplicity)
+	// Construct block
 	return types.NewBlock(&header, txs, nil, nil, nil), nil
 }
 
